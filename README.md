@@ -40,7 +40,7 @@ A simple order processing system. POC Design
 - Orders shall be picked up by fulfillment service within 5 seconds
 - Third-party shipping integration shall timeout after 10 seconds
 
-- ## Technical Requirements
+## Technical Requirements
 
 ### Technology Stack
 - **Language**: .NET 8.0 (C#)
