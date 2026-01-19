@@ -55,5 +55,171 @@ A simple order processing system. POC Design
 
 ### Infrastructure
 - Kafka cluster with at least 1 topic: `order-events`
+  
+---
+# System Components
+This document describes the key components of the Order Processing System POC.
+
+## Components
+
+### 1. Order Service
+**Type**: Microservice (ASP.NET Core Web API)
+
+**Responsibilities**:
+- Expose REST API endpoints for order management
+- Validate incoming order requests
+- Generate unique order IDs
+- Publish order events to Kafka
+- Maintain in-memory order state
+- Provide order status query endpoint
+
+**Technology**:
+- ASP.NET Core 8.0 Web API
+- Confluent.Kafka (Kafka producer client)
+- Hosted on port 5001
+
+**API Endpoints**:
+- `POST /api/orders` - Create new order
+- `GET /api/orders/{id}` - Get order status
+
+**Event Publishing**:
+- Topic: `order-events`
+- Event Type: `OrderCreated`
+- Format: JSON
+
+---
+
+### 2. Fulfillment Service
+**Type**: Microservice (Background Worker Service)
+
+**Responsibilities**:
+- Consume order events from Kafka
+- Process orders asynchronously
+- Integrate with mock third-party shipping provider
+- Update order fulfillment status
+- Expose REST API for health checks and metrics
+
+**Technology**:
+- .NET 8.0 Worker Service
+- ASP.NET Core 8.0 Web API (for status endpoint)
+- Confluent.Kafka (Kafka consumer client)
+- Hosted on port 5002
+
+**Event Consumption**:
+- Topic: `order-events`
+- Consumer Group: `fulfillment-service`
+- Auto-commit: false (manual commit after processing)
+
+**API Endpoints**:
+- `GET /api/fulfillment/health` - Health check
+- `GET /api/fulfillment/orders/{id}` - Get fulfillment status
+
+---
+
+### 3. Apache Kafka
+**Type**: Message Broker
+
+**Responsibilities**:
+- Reliable message delivery between services
+- Event persistence and replay capability
+- Decoupling of producer and consumer services
+
+**Configuration**:
+- Broker: localhost:9092
+- Topics: `order-events` (1 partition, replication factor 1)
+- Message retention: 7 days
+- Cleanup policy: delete
+
+---
+
+### 4. Apache Zookeeper
+**Type**: Coordination Service
+
+**Responsibilities**:
+- Kafka cluster coordination
+- Metadata management
+- Leader election for Kafka partitions
+
+**Configuration**:
+- Port: 2181
+- Data directory: /var/lib/zookeeper
+
+---
+
+### 5. Mock Shipping Provider
+**Type**: Simulated External Dependency
+
+**Responsibilities**:
+- Simulate third-party shipping API
+- Return mock tracking numbers
+- Simulate API latency and occasional failures
+
+**Implementation**:
+- Embedded in Fulfillment Service
+- Simulated HTTP delay (100-500ms)
+- 10% random failure rate to test resilience
+
+**Mock API Response**:
+```json
+{
+  "trackingNumber": "SHIP-{random}",
+  "estimatedDelivery": "2024-01-25T10:00:00Z",
+  "carrier": "MockCarrier",
+  "status": "confirmed"
+}
+```
+
+---
+
+## Data Models
+
+### Order
+```json
+{
+  "orderId": "string (UUID)",
+  "customerId": "string",
+  "customerName": "string",
+  "items": [
+    {
+      "productId": "string",
+      "productName": "string",
+      "quantity": "integer",
+      "price": "decimal"
+    }
+  ],
+  "totalAmount": "decimal",
+  "status": "string (Pending/Processing/Fulfilled/Failed)",
+  "createdAt": "datetime",
+  "updatedAt": "datetime"
+}
+```
+
+### OrderCreatedEvent
+```json
+{
+  "eventId": "string (UUID)",
+  "eventType": "OrderCreated",
+  "timestamp": "datetime",
+  "orderId": "string (UUID)",
+  "customerId": "string",
+  "customerName": "string",
+  "items": "array",
+  "totalAmount": "decimal"
+}
+```
+
+### FulfillmentStatus
+```json
+{
+  "orderId": "string (UUID)",
+  "status": "string (Pending/Shipped/Delivered/Failed)",
+  "trackingNumber": "string",
+  "carrier": "string",
+  "estimatedDelivery": "datetime",
+  "updatedAt": "datetime"
+}
+```
+
+---
 - Zookeeper for Kafka coordination
 - Docker Compose for local development
