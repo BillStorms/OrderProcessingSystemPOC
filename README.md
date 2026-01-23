@@ -1,5 +1,14 @@
 # OrderProcessingSystemPOC
-A simple order processing system. POC Design
+System name: OrderProcessingSystemPOC
+Goal: Demonstrate an event-driven, scalable order processing flow using .NET 8, Kafka, and REST APIs.
+
+The system consists of two main microservices:
+
+Order Service: Synchronous API for order creation and status queries; publishes order events to Kafka.
+
+Fulfillment Service: Asynchronous consumer of order events; integrates with a mocked shipping provider and updates order status.
+
+Both services run in Docker and communicate via Kafka and HTTP.
 
 ## Functional Requirements
 
