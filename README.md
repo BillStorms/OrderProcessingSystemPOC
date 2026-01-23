@@ -69,169 +69,118 @@ Both services run in Docker and communicate via Kafka and HTTP.
 
 <img width="2120" height="3269" alt="OrderSystem_HLD" src="https://github.com/user-attachments/assets/a6e491b5-b5b0-495b-a37f-d3bd1ae2b711" />
 
-Component design
-Order service
-Responsibilities:
+## Component design
+
+### Order service
+
+**Responsibilities:**
+
+- **Order Creation API**
+  - **Endpoint:** `POST /api/orders`
+  - **Behavior:**
+    - Validate payload (customer info, items, quantities).
+    - Generate unique `OrderId` (e.g., GUID).
+    - Persist initial order record with status `Created` / `Pending`.
+    - Publish `OrderCreated` event to Kafka topic `order-events`.
+    - Return `201 Created` with `OrderId` and initial status.
+  - **Performance target:** Respond within **500 ms (P95)** by:
+    - Keeping Kafka publish non-blocking (with short timeout).
+    - Avoiding any long-running fulfillment logic in this path.
+
+- **Order Status API**
+  - **Endpoint:** `GET /api/orders/{orderId}`
+  - **Behavior:**
+    - Fetch order from the order store.
+    - Return current status and fulfillment details (e.g., shipping tracking, timestamps, error info).
+
+**Internal components:**
+
+- **API Layer (ASP.NET Core):** Controllers, request/response models, validation.
+- **Application Layer:**
+  - **OrderService** (domain logic: create order, query status).
+  - **EventPublisher** (Kafka producer abstraction).
+- **Persistence Layer:**
+  - Repository for orders (e.g., SQL Server/Postgres or simple in-memory/SQLite for POC).
+- **Integration Layer:**
+  - Kafka producer client with:
+    - Configurable retries.
+    - Reasonable timeouts.
+    - Circuit breaker/fallback logging when Kafka is unavailable.
+
+---
+
+### Fulfillment service
+
+**Responsibilities:**
+
+- **Kafka Consumer**
+  - Subscribes to `order-events` topic.
+  - Consumes `OrderCreated` events.
+  - Processes messages asynchronously with consumer group for scalability.
+  - Ensures at-least-once processing (idempotent updates in order store).
+
+- **Order Fulfillment Workflow**
+  - Steps:
+    1. Parse `OrderCreated` event.
+    2. Load or create fulfillment record for the order.
+    3. Call mocked third-party shipping provider.
+    4. Update order status (`Processing` → `Shipped` / `Failed`).
+    5. Optionally publish `OrderFulfilled` event (future extension).
+
+- **Third-party shipping integration**
+  - HTTP client with:
+    - **Timeout:** 10 seconds.
+    - Retry policy with backoff for transient failures.
+    - Clear error handling and logging.
+  - Failures **must not** block order acceptance:
+    - Orders remain in `Pending`/`Retrying` state.
+    - Retries scheduled or re-processed via Kafka.
+
+**Internal components:**
+
+- **Worker/Background Service:**
+  - .NET worker service hosting Kafka consumer loop.
+- **Fulfillment Orchestrator:**
+  - Encapsulates business logic for fulfillment and status transitions.
+- **ShippingClient (Mock):**
+  - Simulates external API with configurable latency/failure.
+- **Persistence:**
+  - Shared order store or dedicated fulfillment store (for POC, can reuse same DB).
+
+**Performance target:**
+
+- Orders should be picked up within **5 seconds**:
+  - Kafka consumer poll interval tuned appropriately.
+  - Sufficient consumer instances for load.
+  - Use Kafka buffering to absorb spikes.
+
+---
+
+## Data model and event schema
+
+### Order domain model (simplified)
+
+- **Order**
+  - **OrderId:** string (GUID)
+  - **CustomerId:** string
+  - **CustomerName:** string
+  - **Items:** collection of `OrderItem`
+  - **Status:** enum (`Created`, `Pending`, `Processing`, `Shipped`, `Failed`)
+  - **CreatedAt / UpdatedAt:** timestamps
+  - **FulfillmentDetails:** tracking number, shipping status, error messages
+
+- **OrderItem**
+  - **ProductId:** string
+  - **Quantity:** int
+  - **UnitPrice:** decimal (optional for POC)
 
-Order Creation API
+### Kafka event schema
 
-Endpoint: POST /api/orders
+**Topic:** `order-events`  
+**Key:** `OrderId`  
+**Value (JSON):**
 
-Behavior:
-
-Validate payload (customer info, items, quantities).
-
-Generate unique OrderId (e.g., GUID).
-
-Persist initial order record with status Created / Pending.
-
-Publish OrderCreated event to Kafka topic order-events.
-
-Return 201 Created with OrderId and initial status.
-
-Performance target: Respond within 500 ms (P95) by:
-
-Keeping Kafka publish non-blocking (with short timeout).
-
-Avoiding any long-running fulfillment logic in this path.
-
-Order Status API
-
-Endpoint: GET /api/orders/{orderId}
-
-Behavior:
-
-Fetch order from the order store.
-
-Return current status and fulfillment details (e.g., shipping tracking, timestamps, error info).
-
-Internal components:
-
-API Layer (ASP.NET Core): Controllers, request/response models, validation.
-
-Application Layer:
-
-OrderService (domain logic: create order, query status).
-
-EventPublisher (Kafka producer abstraction).
-
-Persistence Layer:
-
-Repository for orders (e.g., SQL Server/Postgres or simple in-memory/SQLite for POC).
-
-Integration Layer:
-
-Kafka producer client with:
-
-Configurable retries.
-
-Reasonable timeouts.
-
-Circuit breaker/fallback logging when Kafka is unavailable.
-
-Fulfillment service
-Responsibilities:
-
-Kafka Consumer
-
-Subscribes to order-events topic.
-
-Consumes OrderCreated events.
-
-Processes messages asynchronously with consumer group for scalability.
-
-Ensures at-least-once processing (idempotent updates in order store).
-
-Order Fulfillment Workflow
-
-Steps:
-
-Parse OrderCreated event.
-
-Load or create fulfillment record for the order.
-
-Call mocked third-party shipping provider.
-
-Update order status (Processing → Shipped / Failed).
-
-Optionally publish OrderFulfilled event (future extension).
-
-Third-party shipping integration
-
-HTTP client with:
-
-Timeout: 10 seconds.
-
-Retry policy with backoff for transient failures.
-
-Clear error handling and logging.
-
-Failures must not block order acceptance:
-
-Orders remain in Pending/Retrying state.
-
-Retries scheduled or re-processed via Kafka.
-
-Internal components:
-
-Worker/Background Service:
-
-.NET worker service hosting Kafka consumer loop.
-
-Fulfillment Orchestrator:
-
-Encapsulates business logic for fulfillment and status transitions.
-
-ShippingClient (Mock):
-
-Simulates external API with configurable latency/failure.
-
-Persistence:
-
-Shared order store or dedicated fulfillment store (for POC, can reuse same DB).
-
-Performance target:
-
-Orders should be picked up within 5 seconds:
-
-Kafka consumer poll interval tuned appropriately.
-
-Sufficient consumer instances for load.
-
-Use Kafka buffering to absorb spikes.
-
-Data model and event schema
-Order domain model (simplified)
-Order
-
-OrderId: string (GUID)
-
-CustomerId: string
-
-CustomerName: string
-
-Items: collection of OrderItem
-
-Status: enum (Created, Pending, Processing, Shipped, Failed)
-
-CreatedAt / UpdatedAt: timestamps
-
-FulfillmentDetails: tracking number, shipping status, error messages
-
-OrderItem
-
-ProductId: string
-
-Quantity: int
-
-UnitPrice: decimal (optional for POC)
-
-Kafka event schema
-Topic: order-events  
-Key: OrderId  
-Value (JSON):
-
-json
+```json
 {
   "eventType": "OrderCreated",
   "orderId": "string",
@@ -251,115 +200,119 @@ json
     "correlationId": "string"
   }
 }
+```
 Design notes:
 
-Well-defined schema: Versioned via eventType and optional schemaVersion.
+- **Well-defined schema:** Versioned via `eventType` and optional `schemaVersion`.
+- **Loose coupling:** Fulfillment service only depends on event schema, not on Order service internals.
+- **Extensibility:** Future events like `OrderFulfilled`, `OrderFailed` can reuse the same topic or separate topics.
 
-Loose coupling: Fulfillment service only depends on event schema, not on Order service internals.
+---
 
-Extensibility: Future events like OrderFulfilled, OrderFailed can reuse the same topic or separate topics.
+## Cross-cutting concerns and NFR handling
 
-Cross-cutting concerns and NFR handling
-Event-driven architecture
-Asynchronous communication: All fulfillment logic is triggered by Kafka events, not synchronous API calls.
+### Event-driven architecture
 
-Loose coupling: Order service doesn’t know about fulfillment implementation; it only publishes events.
+- **Asynchronous communication:** All fulfillment logic is triggered by Kafka events, not synchronous API calls.
+- **Loose coupling:** Order service doesn’t know about fulfillment implementation; it only publishes events.
+- **Schema governance:** Event contracts defined in a shared library or OpenAPI/JSON schema for both services.
 
-Schema governance: Event contracts defined in a shared library or OpenAPI/JSON schema for both services.
+---
 
-Scalability
-Independent scaling:
+### Scalability
 
-Scale Order Service instances behind a load balancer for API throughput.
+**Independent scaling:**
 
-Scale Fulfillment Service instances (consumer group) to increase parallel processing.
+- Scale **Order Service** instances behind a load balancer for API throughput.
+- Scale **Fulfillment Service** instances (consumer group) to increase parallel processing.
 
-Kafka buffering:
+**Kafka buffering:**
 
-During spikes, Kafka topic stores events; fulfillment catches up as capacity allows.
+- During spikes, Kafka topic stores events; fulfillment catches up as capacity allows.
 
-Resilience
-Kafka failures:
+---
 
-Order service:
+### Resilience
 
-On publish failure, log and optionally mark order as Pending with PublishFailed flag.
+**Kafka failures:**
 
-Use retry with backoff; if still failing, respond with success but note degraded mode in logs/metrics (POC decision).
+**Order service:**
 
-Fulfillment service:
+- On publish failure, log and optionally mark order as `Pending` with `PublishFailed` flag.
+- Use retry with backoff; if still failing, respond with success but note degraded mode in logs/metrics (POC decision).
 
-Consumer retries on transient errors.
+**Fulfillment service:**
 
-On persistent failures, park messages (DLQ pattern for future extension).
+- Consumer retries on transient errors.
+- On persistent failures, park messages (DLQ pattern for future extension).
 
-Third-party failures:
+**Third-party failures:**
 
-Do not block order creation.
+- Do not block order creation.
 
-Fulfillment service:
+**Fulfillment service:**
 
-Retries shipping calls with backoff.
+- Retries shipping calls with backoff.
+- If still failing, set status to `Failed` or `Retrying` and log.
 
-If still failing, set status to Failed or Retrying and log.
+---
 
-Performance
-Order creation (≤ 500 ms P95):
+### Performance
 
-Minimal synchronous work: validation, DB insert, Kafka publish.
+**Order creation (≤ 500 ms P95):**
 
-No external HTTP calls in this path.
+- Minimal synchronous work: validation, DB insert, Kafka publish.
+- No external HTTP calls in this path.
 
-Fulfillment pickup (≤ 5 seconds):
+**Fulfillment pickup (≤ 5 seconds):**
 
-Kafka consumer with short poll interval.
+- Kafka consumer with short poll interval.
+- Adequate consumer instances and partitions.
 
-Adequate consumer instances and partitions.
+**Shipping timeout (10 seconds):**
 
-Shipping timeout (10 seconds):
+- HTTP client timeout set to 10 seconds.
+- Circuit breaker to avoid cascading failures.
 
-HTTP client timeout set to 10 seconds.
+---
 
-Circuit breaker to avoid cascading failures.
+### Observability
 
-Observability
-Logging:
+**Logging:**
 
-Structured logs for each major step (order created, event published, event consumed, shipping called, status updated).
+- Structured logs for each major step (order created, event published, event consumed, shipping called, status updated).
 
-Metrics (POC-level):
+**Metrics (POC-level):**
 
-Order creation latency.
+- Order creation latency.
+- Time from `OrderCreated` event to `Shipped`.
+- Kafka consumer lag.
 
-Time from OrderCreated event to Shipped.
+---
 
-Kafka consumer lag.
+## Deployment and infrastructure
 
-Deployment and infrastructure
-Docker and local environment
+### Docker and local environment
+
 Docker Compose orchestrates:
 
-Order Service container.
+- **Order Service** container.
+- **Fulfillment Service** container.
+- **Kafka + Zookeeper** containers.
+- Optional **DB** container (SQL Server, Postgres, or lightweight alternative).
 
-Fulfillment Service container.
+---
 
-Kafka + Zookeeper containers.
+## Configuration
 
-Optional DB container (e.g., SQL Server, Postgres, or lightweight alternative).
+### Environment variables:
 
-Configuration
-Environment variables:
+- Kafka bootstrap servers.
+- Topic name (`order-events`).
+- DB connection strings.
+- Shipping provider base URL and timeout.
 
-Kafka bootstrap servers.
+### Profiles:
 
-Topic name (order-events).
-
-DB connection strings.
-
-Shipping provider base URL and timeout.
-
-Profiles:
-
-Local POC profile with mocked shipping and simple DB.
-
-Future: separate configs for dev/test/prod.
+- **Local POC profile** with mocked shipping and simple DB.
+- **Future profiles:** dev/test/prod with real integrations and scaling.
