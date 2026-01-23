@@ -58,5 +58,6 @@ A simple order processing system. POC Design
 - Zookeeper for Kafka coordination
 - Docker Compose for local development
 
-<img width="2120" height="3269" alt="OrderSystemHLD" src="https://github.com/user-attachments/assets/2bf933c0-b76f-48bd-8a1b-c30fd28910c6" />
+<img width="2120" height="3269" alt="OrderSystem_HLD" src="https://github.com/user-attachments/assets/a6e491b5-b5b0-495b-a37f-d3bd1ae2b711" />
+
 
