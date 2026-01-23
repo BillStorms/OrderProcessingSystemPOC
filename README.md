@@ -67,7 +67,8 @@ Both services run in Docker and communicate via Kafka and HTTP.
 - Zookeeper for Kafka coordination
 - Docker Compose for local development
 
-<img width="2120" height="3269" alt="OrderSystem_HLD" src="https://github.com/user-attachments/assets/a6e491b5-b5b0-495b-a37f-d3bd1ae2b711" />
+<img width="2360" height="3269" alt="Blank board (1)" src="https://github.com/user-attachments/assets/e98a8be4-aa74-4929-8b34-2e690c6d343d" />
+
 
 ## Component design
 
