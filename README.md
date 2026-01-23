@@ -172,7 +172,7 @@ Both services run in Docker and communicate via Kafka and HTTP.
 - **OrderItem**
   - **ProductId:** string
   - **Quantity:** int
-  - **UnitPrice:** decimal (optional for POC)
+  - **UnitPrice:** decimal 
 
 ### Kafka event schema
 
@@ -239,8 +239,8 @@ Design notes:
 **Order service:**
 
 - On publish failure, log and optionally mark order as `Pending` with `PublishFailed` flag.
-- Use retry with backoff; if still failing, respond with success but note degraded mode in logs/metrics (POC decision).
-
+- Use retry with backoff.
+  
 **Fulfillment service:**
 
 - Consumer retries on transient errors.
