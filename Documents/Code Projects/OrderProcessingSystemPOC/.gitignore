@@ -1,0 +1,28 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+
+# VS / Rider / IDE
+.vs/
+.vscode/
+.idea/
+.rider/
+
+# Logs
+[Ll]og/
+[Ll]ogs/
+*.log
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Docker / env
+.env
+.env.*
