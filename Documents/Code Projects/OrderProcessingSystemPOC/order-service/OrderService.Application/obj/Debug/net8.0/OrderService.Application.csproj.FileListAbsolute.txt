@@ -1,0 +1,16 @@
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/bin/Debug/net8.0/OrderService.Application.deps.json
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/bin/Debug/net8.0/OrderService.Application.dll
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/bin/Debug/net8.0/OrderService.Application.pdb
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/bin/Debug/net8.0/OrderService.Domain.dll
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/bin/Debug/net8.0/OrderService.Domain.pdb
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.csproj.AssemblyReference.cache
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.GeneratedMSBuildEditorConfig.editorconfig
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.AssemblyInfoInputs.cache
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.AssemblyInfo.cs
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.csproj.CoreCompileInputs.cache
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.sourcelink.json
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderSer.7EAAA39B.Up2Date
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.dll
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/refint/OrderService.Application.dll
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/OrderService.Application.pdb
+/Users/williamstorms/Documents/Code Projects/OrderProcessingSystemPOC/order-service/OrderService.Application/obj/Debug/net8.0/ref/OrderService.Application.dll
