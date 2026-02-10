@@ -98,7 +98,7 @@ services:
   fulfillment-service:
     build:
       context: .
-      dockerfile: fulfillment-service/FulfillmentService.Worker/Dockerfile
+      dockerfile: fulfillment-service/Dockerfile
     container_name: fulfillment-service-worker
     depends_on:
       kafka:

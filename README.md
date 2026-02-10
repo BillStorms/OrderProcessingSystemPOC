@@ -616,7 +616,7 @@ UpdatedAt	datetime
 FulfillmentJson	text/json	Serialized FulfillmentDetails
 3. Fulfillment service LLD
 3.1 Project structure
-FulfillmentService.Worker
+fulfillment-service
 
 Background worker
 
