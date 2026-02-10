@@ -1,6 +1,6 @@
-using OrderService.Application.DTOs;
+using OrderService.Service.DTOs;
 
-namespace OrderService.Application.Validators;
+namespace OrderService.Service.Validators;
 
 public class OrderValidator
 {

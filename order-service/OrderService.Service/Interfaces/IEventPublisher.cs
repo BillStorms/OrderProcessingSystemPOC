@@ -1,6 +1,6 @@
-using OrderService.Application.Events;
+using OrderService.Service.Events;
 
-namespace OrderService.Application.Interfaces;
+namespace OrderService.Service.Interfaces;
 
 public interface IEventPublisher
 {

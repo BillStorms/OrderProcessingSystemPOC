@@ -1,14 +1,67 @@
-# OrderProcessingSystemPOC
-System name: OrderProcessingSystemPOC
-Goal: Demonstrate an event-driven, scalable order processing flow using .NET 8, Kafka, and REST APIs.
+# Order Processing System POC
+
+A distributed order processing system demonstrating event-driven architecture with microservices, Apache Kafka, and Docker Compose.
+
+**System Goal:** Demonstrate an event-driven, scalable order processing flow using .NET 8, Kafka, and REST APIs.
+
+## 🏗️ Architecture Overview
 
 The system consists of two main microservices:
 
-Order Service: Synchronous API for order creation and status queries; publishes order events to Kafka.
-
-Fulfillment Service: Asynchronous consumer of order events; integrates with a mocked shipping provider and updates order status.
+- **Order Service**: Synchronous API for order creation and status queries; publishes order events to Kafka
+- **Fulfillment Service**: Asynchronous consumer of order events; integrates with a mocked shipping provider and updates order status
 
 Both services run in Docker and communicate via Kafka and HTTP.
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker Desktop (or Docker + Docker Compose)
+- .NET 8 SDK (optional, for local development)
+
+### Setup & Run
+
+1. **Clone and configure**
+   ```bash
+   git clone <your-repo-url>
+   cd OrderProcessingSystemPOC
+   
+   # Copy environment template
+   cp .env.example .env
+   
+   # Edit .env if needed (default password works for local dev)
+   ```
+
+2. **Start services**
+   ```bash
+   docker compose up --build
+   ```
+
+3. **Test the flow**
+   ```bash
+   curl -X POST http://localhost:5000/api/orders \
+     -H "Content-Type: application/json" \
+     -d '{
+       "customerId": "customer-123",
+       "customerName": "John Doe",
+       "items": [{"productId": "product-456", "quantity": 2}]
+     }'
+   ```
+
+4. **Watch the logs**
+   ```bash
+   docker compose logs -f order-service
+   docker compose logs -f fulfillment-service
+   ```
+
+## 🔐 Security Note
+
+**IMPORTANT:** This repository uses environment variables for sensitive configuration.
+- ✅ `.env.example` contains safe placeholder values (committed)
+- ❌ `.env` contains actual secrets (gitignored, never commit!)
+
+See [docs/SECURITY.md](docs/SECURITY.md) for complete security guidelines.
 
 ## Functional Requirements
 
@@ -353,7 +406,7 @@ Controllers
 
 DTOs
 
-OrderService.Application
+OrderService.Service
 
 Services (use cases)
 

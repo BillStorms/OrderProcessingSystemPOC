@@ -6,17 +6,24 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy project files
-COPY ["OrderService.Api/OrderService.Api.csproj", "OrderService.Api/"]
-COPY ["OrderService.Application/OrderService.Application.csproj", "OrderService.Application/"]
-COPY ["OrderService.Domain/OrderService.Domain.csproj", "OrderService.Domain/"]
-COPY ["OrderService.Infrastructure/OrderService.Infrastructure.csproj", "OrderService.Infrastructure/"]
+# Copy project files (paths are relative to repo root build context)
+COPY ["order-service/OrderService.Api/OrderService.Api.csproj", "OrderService.Api/"]
+COPY ["order-service/OrderService.Service/OrderService.Service.csproj", "OrderService.Service/"]
+COPY ["order-service/OrderService.Domain/OrderService.Domain.csproj", "OrderService.Domain/"]
+COPY ["order-service/OrderService.Infrastructure/OrderService.Infrastructure.csproj", "OrderService.Infrastructure/"]
+
+# Copy central package files so dotnet restore can honor Directory.Packages.props
+COPY ["Directory.Packages.props", "./"]
+COPY ["Directory.Build.props", "./"]
 
 # Restore dependencies
 RUN dotnet restore "OrderService.Api/OrderService.Api.csproj"
 
-# Copy all source code
-COPY . .
+# Copy only the order-service source folders into the expected locations
+COPY ["order-service/OrderService.Api/", "OrderService.Api/"]
+COPY ["order-service/OrderService.Service/", "OrderService.Service/"]
+COPY ["order-service/OrderService.Domain/", "OrderService.Domain/"]
+COPY ["order-service/OrderService.Infrastructure/", "OrderService.Infrastructure/"]
 
 # Build the application
 WORKDIR "/src/OrderService.Api"

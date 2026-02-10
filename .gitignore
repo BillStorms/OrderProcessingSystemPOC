@@ -26,3 +26,4 @@ Thumbs.db
 # Docker / env
 .env
 .env.*
+!.env.example
