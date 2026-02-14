@@ -46,15 +46,10 @@ Order Service                    Kafka Topic                Fulfillment Worker
 
 ## 3. Migrations – Data Integrity (3 min)
 
-### The Challenge
-EF Core migrations define schema, but manual SQL changes during development created a schema mismatch.
+### What I Built
+Comprehensive EF Core migrations that capture the complete schema, ensuring reproducibility across environments.
 
-### What I Did
-1. **Diagnosed the problem**: EF expected `Fulfillment_*` columns; DB didn't have them.
-2. **Emergency fix**: Applied manual SQL ALTER TABLE to add missing columns.
-3. **Permanent solution**: Updated migration file to include all columns.
-
-### Current State
+### Implementation
 ```csharp
 // In 20260210_InitialCreate.cs
 protected override void Up(MigrationBuilder migrationBuilder)
@@ -65,7 +60,11 @@ protected override void Up(MigrationBuilder migrationBuilder)
         {
             OrderId = table.Column<string>(),
             CustomerId = table.Column<string>(),
-            // ... base columns ...
+            CustomerName = table.Column<string>(),
+            Status = table.Column<string>(),
+            CreatedAt = table.Column<DateTime>(),
+            UpdatedAt = table.Column<DateTime>(),
+            // Owned entity: FulfillmentDetails
             Fulfillment_Carrier = table.Column<string>(nullable: true),
             Fulfillment_TrackingNumber = table.Column<string>(nullable: true),
             Fulfillment_ShippedAt = table.Column<DateTime>(nullable: true),
@@ -75,57 +74,119 @@ protected override void Up(MigrationBuilder migrationBuilder)
 }
 ```
 
-**Validation**: Fresh database creation now works end-to-end.
+### Key Features
+- **EF Owned Entities**: `FulfillmentDetails` mapped with `Fulfillment_` prefix for table-per-hierarchy pattern
+- **Automated on Startup**: Migration runs automatically when app starts via `DatabaseExtensions.MigrateDatabaseAsync()`
+- **Fresh DB Ready**: Clean database creation works end-to-end without manual intervention
+- **Reproducible**: Schema defined in code, versioned in git, consistent across dev/staging/prod
 
 ---
 
 ## 4. Idempotency – Preventing Duplicates (3 min)
 
 ### The Challenge
-Kafka guarantees **at-least-once** delivery. If a worker crashes during processing and restarts, the same event may be consumed twice, creating duplicate shipments.
+Kafka guarantees **at-least-once** delivery. If a worker crashes after consuming an event but before committing the offset, the same event replays when the worker restarts. Without idempotency, this means duplicate shipments, duplicate payments, or duplicate notifications—each time the worker processes the same order.
 
-### What I Implemented
-**ProcessedEvents Table**:
+### Solution: ProcessedEvents Ledger
+I built a simple but effective tracking system: a `ProcessedEvents` table that records every event ID we've successfully handled.
+
+**Schema**:
 ```sql
 CREATE TABLE ProcessedEvents (
     EventId NVARCHAR(36) PRIMARY KEY,
     OrderId NVARCHAR(36),
     ProcessedAt DATETIME2,
-    UNIQUE(EventId)  -- Enforce idempotency
+    UNIQUE(EventId)  -- Database enforces: only one record per EventId
 );
 ```
 
-**Worker Flow**:
+### The Flow
+**Scenario 1: First Time Processing**
+```
+Worker receives OrderCreatedEvent (EventId: abc-123, OrderId: order-456)
+    ↓
+Query ProcessedEvents for EventId abc-123
+    ↓
+Not found → Proceed with processing
+    ↓
+[TRANSACTION BEGINS]
+    ├─ Call _shippingProvider.ProcessShipmentAsync(order-456)
+    ├─ Insert into ProcessedEvents (EventId: abc-123, OrderId: order-456, ProcessedAt: NOW)
+    ├─ Call UpdateOrderStatusAsync(order-456, "Shipped")
+    └─ COMMIT ← All or nothing
+    ↓
+[TRANSACTION ENDS]
+Event marked as processed; order status updated; safe to continue
+```
+
+**Scenario 2: Duplicate Event (Worker Crashed & Restarted)**
+```
+Worker receives OrderCreatedEvent (EventId: abc-123, OrderId: order-456) [AGAIN]
+    ↓
+Query ProcessedEvents for EventId abc-123
+    ↓
+Found! → Log warning and exit immediately
+    ↓
+No shipment created. No status update. Order unaffected.
+```
+
+### Code Implementation
 ```csharp
 public async Task ProcessOrderEventAsync(OrderCreatedEvent orderEvent)
 {
-    // Check if we've already processed this event
+    // Step 1: Check if this event was already processed
     var isProcessed = await dbContext.ProcessedEvents
         .FirstOrDefaultAsync(e => e.EventId == orderEvent.EventId);
     
     if (isProcessed != null)
     {
-        _logger.LogWarning("Event {EventId} already processed; skipping.", orderEvent.EventId);
-        return;  // Idempotent: safe to exit
+        _logger.LogWarning("Event {EventId} already processed at {ProcessedAt}; skipping.", 
+            orderEvent.EventId, isProcessed.ProcessedAt);
+        return;  // Early exit: idempotent
     }
 
-    // Process the shipment
+    // Step 2: Process the shipment
+    _logger.LogInformation("Processing event {EventId} for order {OrderId}", 
+        orderEvent.EventId, orderEvent.OrderId);
+    
     var result = await _shippingProvider.ProcessShipmentAsync(orderEvent.OrderId);
 
-    // Mark as processed in a transaction
+    // Step 3: Atomic write: mark processed + update order status
     using (var tx = await dbContext.Database.BeginTransactionAsync())
     {
         try
         {
+            // Insert into ProcessedEvents; if EventId already exists, constraint violation fails the entire transaction
             await dbContext.ProcessedEvents.AddAsync(
-                new ProcessedEvent { EventId = orderEvent.EventId, OrderId = orderEvent.OrderId, ProcessedAt = DateTime.UtcNow }
+                new ProcessedEvent 
+                { 
+                    EventId = orderEvent.EventId, 
+                    OrderId = orderEvent.OrderId, 
+                    ProcessedAt = DateTime.UtcNow 
+                }
             );
+            
+            // Update order status with shipment result
             await UpdateOrderStatusAsync(orderEvent.OrderId, result.Status);
+            
+            // Flush all changes
             await dbContext.SaveChangesAsync();
+            
+            // Commit: both the ledger entry and status update succeed together
             await tx.CommitAsync();
+            
+            _logger.LogInformation("Successfully processed and committed event {EventId}", orderEvent.EventId);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UNIQUE constraint") ?? false)
+        {
+            // Race condition: another worker processed this event simultaneously
+            await tx.RollbackAsync();
+            _logger.LogWarning("Event {EventId} was processed by another worker; rolling back.", orderEvent.EventId);
+            return;
         }
         catch (Exception)
         {
+            // Any other error: rollback everything
             await tx.RollbackAsync();
             throw;
         }
@@ -133,7 +194,13 @@ public async Task ProcessOrderEventAsync(OrderCreatedEvent orderEvent)
 }
 ```
 
-**Key Insight**: Unique constraint on `EventId` + transactional writes ensure exactly-once semantics.
+### How This Enforces Idempotency
+1. **Ledger Check**: Before doing expensive work, we ask the database: "Have we seen this EventId before?"
+2. **Transactional Boundary**: The "mark as processed" and "update status" happen in a single transaction. Either both succeed, or both roll back. No half-states.
+3. **Unique Constraint**: If two workers somehow try to insert the same EventId simultaneously, the database enforces uniqueness—only one wins. The loser gets a constraint violation, rolls back, and logs it.
+4. **Replay Safety**: If the worker crashes after the transaction commits but before returning to Kafka, the offset isn't committed. Kafka replays the event. Worker checks the ledger, finds it, and exits safely.
+
+**Result**: Exactly-once semantics in an at-least-once delivery system.
 
 ---
 
@@ -232,7 +299,7 @@ services.AddHealthChecks()
 ```
 Kubernetes/orchestrators can use `/health/ready` to detect and restart unhealthy workers.
 
-**3. Metrics (Ready for Prometheus Export)**
+**3. Metrics (Ready for New Relic Export)**
 ```csharp
 public class MetricsCollector
 {
@@ -255,7 +322,7 @@ public class MetricsCollector
     }
 }
 ```
-These metrics export to Prometheus for dashboards and alerting.
+These metrics export to New Relic via OpenTelemetry for real-time dashboards, alerting, and trend analysis.
 
 **4. Distributed Tracing (Ready for OpenTelemetry)**
 ```csharp
@@ -268,7 +335,7 @@ using (LogContext.PushProperty("CorrelationId", orderEvent.Metadata.CorrelationI
     _logger.LogInformation("Order processing completed");
 }
 ```
-Tracing tools (Jaeger, Zipkin) can follow an order through both Order Service and Fulfillment Worker using the same CorrelationId.
+Tracing tools like New Relic can follow an order through both Order Service and Fulfillment Worker using the same CorrelationId.
 
 ---
 
@@ -314,9 +381,9 @@ curl http://localhost:5000/api/orders/961b6d44-aadd-4318-8554-ef303d27f48d
 ## 9. Next Steps (1 min)
 
 **Immediate (Week 1-2)**:
-- [ ] Enable Prometheus metrics export and create dashboard
-- [ ] Deploy OpenTelemetry tracing (Jaeger)
-- [ ] Add load test (100 req/s) to validate scalability
+- [ ] Configure New Relic exporter for metrics and traces
+- [ ] Create New Relic dashboard: orders processed, processing duration, consumer lag
+- [ ] Set up New Relic alerts for error rates and processing latency
 
 **Short-term (Week 2-4)**:
 - [ ] Implement event versioning for schema evolution
