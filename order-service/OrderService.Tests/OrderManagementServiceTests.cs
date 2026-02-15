@@ -5,7 +5,6 @@ using OrderService.Domain.Models;
 using OrderService.Service.DTOs;
 using OrderService.Service.Interfaces;
 using OrderService.Service.Services;
-using Xunit;
 
 namespace OrderService.Tests;
 

@@ -18,7 +18,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderService.Tests", "order
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fulfillment-service", "fulfillment-service", "{A22EF878-B853-4AE8-ABE8-A0E11642AE11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FulfillmentService.Tests", "fulfillment-service\Tests\FulfillmentService.Tests.csproj", "{47ED6ECA-9E7E-47A6-8D3A-F02576BB8D7B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FulfillmentService.Worker.Tests", "fulfillment-service\FulfillmentService.Worker.Tests\FulfillmentService.Worker.Tests.csproj", "{47ED6ECA-9E7E-47A6-8D3A-F02576BB8D7B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

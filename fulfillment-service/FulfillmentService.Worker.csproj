@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="Tests\**" />
+    <Compile Remove="FulfillmentService.Worker.Tests\**" />
   </ItemGroup>
 
 </Project>

@@ -2,7 +2,7 @@ using FluentAssertions;
 using FulfillmentService.Worker.Models;
 using Xunit;
 
-namespace FulfillmentService.Tests;
+namespace FulfillmentService.Worker.Tests;
 
 public class OrderCreatedEventTests
 {

@@ -6,7 +6,7 @@ using FulfillmentService.Worker.Models;
 using FulfillmentService.Worker.Services;
 using Xunit;
 
-namespace FulfillmentService.Tests;
+namespace FulfillmentService.Worker.Tests;
 
 public class MockShippingProviderTests
 {
