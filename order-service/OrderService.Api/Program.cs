@@ -1,12 +1,15 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics;
+using AspNetCoreRateLimit;
+using Asp.Versioning;
 using OrderService.Service.Interfaces;
 using OrderService.Service.Services;
 using OrderService.Infrastructure.Data;
 using OrderService.Infrastructure.Repositories;
 using OrderService.Infrastructure.Kafka;
 using OrderService.Api.Extensions;
+using OrderService.Api.Middleware;
 using Serilog;
 using Serilog.Formatting.Json;
 
@@ -15,6 +18,7 @@ Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
         .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
+        .AddJsonFile("appsettings.RateLimit.json", optional: true)
         .AddEnvironmentVariables()
         .Build())
     .Enrich.FromLogContext()
@@ -30,13 +34,61 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
+    // Add configuration for rate limiting
+    builder.Configuration.AddJsonFile("appsettings.RateLimit.json", optional: true, reloadOnChange: true);
+
     // Add Serilog
     builder.Host.UseSerilog();
+
+    // Configure CORS
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("DefaultCorsPolicy", policy =>
+        {
+            policy.WithOrigins(
+                    builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+                    ?? new[] { "http://localhost:3000", "http://localhost:5173" })
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        });
+    });
+
+    // Configure Rate Limiting
+    builder.Services.AddMemoryCache();
+    builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+    builder.Services.Configure<IpRateLimitPolicies>(builder.Configuration.GetSection("IpRateLimitPolicies"));
+    builder.Services.AddInMemoryRateLimiting();
+    builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
+    // Configure API Versioning
+    builder.Services.AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1, 0);
+        options.AssumeDefaultVersionWhenUnspecified = true;
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = ApiVersionReader.Combine(
+            new UrlSegmentApiVersionReader(),
+            new HeaderApiVersionReader("X-Api-Version"),
+            new QueryStringApiVersionReader("api-version"));
+    }).AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
 
     // Add services to the container.
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo 
+        { 
+            Title = "Order Service API", 
+            Version = "v1",
+            Description = "Order processing service with event-driven architecture"
+        });
+    });
 
     // Database configuration (uncomment to use SQL Server)
     var useSqlDatabase = builder.Configuration.GetValue<bool>("UseSqlDatabase");
@@ -99,12 +151,21 @@ try
         };
     });
 
+    // Security: Add security headers middleware
+    app.UseSecurityHeaders();
+
+    // Security: Enable IP rate limiting
+    app.UseIpRateLimiting();
+
     // Configure the HTTP request pipeline.
     if (app.Environment.IsDevelopment())
     {
         app.UseSwagger();
         app.UseSwaggerUI();
     }
+
+    // Security: Enable CORS
+    app.UseCors("DefaultCorsPolicy");
 
     app.UseHttpsRedirection();
     app.UseExceptionHandler("/error");
