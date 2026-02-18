@@ -150,7 +150,9 @@ public class FulfillmentWorker : BackgroundService
             _logger.LogInformation("Updating order {OrderId} to status {Status}, CorrelationId: {CorrelationId}", 
                 orderId, status, correlationId);
 
-            var response = await _httpClient.PatchAsync($"/api/orders/{orderId}/status", content);
+            // The Order Service exposes endpoints under /api/v1/orders (API versioning).
+            // Ensure the worker calls the versioned route so the request is routed correctly.
+            var response = await _httpClient.PatchAsync($"/api/v1/orders/{orderId}/status", content);
             
             if (response.IsSuccessStatusCode)
             {

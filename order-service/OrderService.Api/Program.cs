@@ -101,7 +101,8 @@ try
     else
     {
         // Use in-memory repository for development/testing
-        builder.Services.AddScoped<IOrderRepository, InMemoryOrderRepository>();
+        // Singleton ensures orders persist across requests for POC demo
+        builder.Services.AddSingleton<IOrderRepository, InMemoryOrderRepository>();
     }
 
     // Register application services
