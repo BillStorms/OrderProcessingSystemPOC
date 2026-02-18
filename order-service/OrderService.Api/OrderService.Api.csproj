@@ -22,6 +22,9 @@
     <PackageReference Include="Serilog.Enrichers.Thread" />
     <PackageReference Include="Serilog.Settings.Configuration" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="AspNetCoreRateLimit" />
+    <PackageReference Include="Asp.Versioning.Mvc" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
   </ItemGroup>
 
   <ItemGroup>
